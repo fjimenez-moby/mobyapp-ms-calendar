@@ -32,8 +32,12 @@ build/
 ### VS Code ###
 .vscode/
 
-### Carpeta extraña que genera el IntelliJ
-bin/
+# Properties
+**/.env
+!**/.env.example
+**/dev.properties
+!**/dev.properties.example
 
-### Archivos env
-src/main/resources/dev.properties
+# Carpetas de compilación
+bin/
+**/bin/
