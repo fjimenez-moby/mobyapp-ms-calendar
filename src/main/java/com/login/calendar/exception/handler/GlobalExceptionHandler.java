@@ -1,5 +1,6 @@
-package exception;
+package com.login.calendar.exception.handler;
 
+import com.login.calendar.exception.InvalidAuthHeaderException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -25,6 +26,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Ocurrió un error inesperado");
+    }
+
+    @ExceptionHandler(InvalidAuthHeaderException.class)
+    public ResponseEntity<Object> handleInvalidAuthHeader(InvalidAuthHeaderException ex) {
+        logger.warning("UNAUTHORIZED attempt: " + ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(createErrorResponse(ex.getMessage()));
+    }
+
+    private Object createErrorResponse(String msg) {
+        return new Object() {
+            public final boolean success = false;
+            public final String message = msg;
+            public final long timestamp = System.currentTimeMillis();
+        };
     }
 
 
