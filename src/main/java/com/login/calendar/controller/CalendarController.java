@@ -1,123 +1,95 @@
 package com.login.calendar.controller;
 
-import com.login.calendar.dto.CalendarEventDto;
+import com.login.calendar.dto.CalendarEventDTO;
 import com.login.calendar.service.CalendarService;
+import com.login.calendar.exception.InvalidAuthHeaderException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/calendar")
 public class CalendarController {
 
+    private static final boolean SUCCESS_STATUS = true;
+    private static final String SUCCESS_MESSAGE = "Eventos del calendario obtenidos exitosamente";
     private static final Logger logger = Logger.getLogger(CalendarController.class.getName());
+    private final CalendarService service;
 
     @Autowired
-    private CalendarService service;
+    public CalendarController(CalendarService service) {
+        this.service = service;
+    }
 
     @GetMapping("/events")
-    public ResponseEntity<Object> getCalendarEvents(@RequestHeader("Authorization") String authHeader)
-            throws IOException
-    {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new Object() {
-                public final boolean success = false;
-                public final String message = "Autorización requerida. Encabezado 'Authorization' no encontrado o inválido.";
-            });
-        }
-        String googleAccessToken = authHeader.substring(7); // Remueve "Bearer "
+    public ResponseEntity<Object> getCalendarEvents(@RequestHeader("Authorization") String authHeader) throws IOException {
+        logger.info("GET /events");
 
-        // Llama al servicio para obtener los eventos usando el accessToken de Google
-        List<CalendarEventDto> events = service.listCalendarEvents(googleAccessToken);
+        String googleAccessToken = getGoogleAccessToken(authHeader);
 
-        Object response = createResponse(events);
-        return ResponseEntity.ok().body(response);
+        List<CalendarEventDTO> events = service.listCalendarEvents(googleAccessToken);
 
+        return ResponseEntity.ok().body(createResponse(events));
     }
 
     @GetMapping("/events/month")
     public ResponseEntity<Object> getCalendarEventsByMonth(@RequestHeader("Authorization") String authHeader,
-                                                           @RequestParam LocalDate date)
-            throws IOException
-    {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new Object() {
-                public final boolean success = false;
-                public final String message = "Autorización requerida. Encabezado 'Authorization' no encontrado o inválido.";
-            });
-        }
+                                                           @RequestParam LocalDate date) throws IOException {
+        logger.info("GET /events/month");
 
-        String googleAccessToken = authHeader.substring(7); // Remueve "Bearer "
+        String googleAccessToken = getGoogleAccessToken(authHeader);
 
-        // Llama al servicio para obtener los eventos usando el accessToken de Google
-        List<CalendarEventDto> events = service.listCalendarEventsByMonth(googleAccessToken,date);
+        List<CalendarEventDTO> events = service.listCalendarEventsByMonth(googleAccessToken,date);
 
-        Object response = createResponse(events);
-        return ResponseEntity.ok().body(response);
-
+        return ResponseEntity.ok().body(createResponse(events));
     }
 
     @GetMapping("/events/week")
     public ResponseEntity<Object> getCalendarEventsByWeek(@RequestHeader("Authorization") String authHeader,
-                                                          @RequestParam LocalDate date)
-            throws IOException
-    {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new Object() {
-                public final boolean success = false;
-                public final String message = "Autorización requerida. Encabezado 'Authorization' no encontrado o inválido.";
-            });
-        }
+                                                          @RequestParam LocalDate date) throws IOException {
+        logger.info("GET /events/week");
 
-        String googleAccessToken = authHeader.substring(7); // Remueve "Bearer "
+        String googleAccessToken = getGoogleAccessToken(authHeader);
 
-        // Llama al servicio para obtener los eventos usando el accessToken de Google
-        List<CalendarEventDto> events = service.listCalendarEventsByWeek(googleAccessToken,date);
+        List<CalendarEventDTO> events = service.listCalendarEventsByWeek(googleAccessToken,date);
 
-        Object response = createResponse(events);
-        return ResponseEntity.ok().body(response);
-
+        return ResponseEntity.ok().body(createResponse(events));
     }
 
     @GetMapping("/events/day")
     public ResponseEntity<Object> getCalendarEventsByDate(@RequestHeader("Authorization") String authHeader,
-                                                          @RequestParam LocalDate date)
-            throws IOException
-    {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new Object() {
-                public final boolean success = false;
-                public final String message = "Autorización requerida. Encabezado 'Authorization' no encontrado o inválido.";
-            });
-        }
+                                                          @RequestParam LocalDate date) throws IOException {
+        logger.info("GET /events/day");
 
-        String googleAccessToken = authHeader.substring(7); // Remueve "Bearer "
+        String googleAccessToken = getGoogleAccessToken(authHeader);
 
-        // Llama al servicio para obtener los eventos usando el accessToken de Google
-        List<CalendarEventDto> events = service.listCalendarEventsByDay(googleAccessToken,date);
+        List<CalendarEventDTO> events = service.listCalendarEventsByDay(googleAccessToken,date);
 
-        Object response = createResponse(events);
-        return ResponseEntity.ok().body(response);
-
+        return ResponseEntity.ok().body(createResponse(events));
     }
 
+    private String getGoogleAccessToken(String authHeader){
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            logger.warning("UNAUTHORIZED: Invalid or missing 'Authorization' header.");
+            throw new InvalidAuthHeaderException("Autorización requerida. Encabezado 'Authorization' no encontrado o inválido.");
+        }
+        logger.info("Access token successfully extracted.");
+        return authHeader.substring(7);
+    }
 
-    public Object createResponse (List<CalendarEventDto> events) {
+    private Object createResponse (List<CalendarEventDTO> events) {
+        logger.info("Create Response");
         return new Object() {
-            public final boolean success = true;
-            public final String message = "Eventos del calendario obtenidos exitosamente";
+            public final boolean success = SUCCESS_STATUS;
+            public final String message = SUCCESS_MESSAGE;
             public final int eventCount = events.size();
-            public final List<CalendarEventDto> eventsList = events;
+            public final List<CalendarEventDTO> eventsList = events;
             public final long timestamp = System.currentTimeMillis();
             public final String note = "Mostrando próximos " + events.size() + " eventos";
         };
     }
-
 }

@@ -3,36 +3,36 @@ package com.login.calendar.service;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.DateTime;
+import com.google.api.services.calendar.model.ConferenceData;
 import com.google.api.services.calendar.model.EntryPoint;
 import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.Events;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.login.calendar.dto.CalendarEventDto;
+import com.login.calendar.dto.CalendarEventDTO;
 import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.time.*;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 
 @Service
-public class CalendarService {
+public class CalendarService implements ICalendarService {
 
     private static final Logger logger = Logger.getLogger(CalendarService.class.getName());
+    private static final String STARTING_CALENDAR_EVENTS_SEARCH = "Starting calendar events search...";
+    private static final String BRANDING_ORGANIZER_EMAIL = "branding@mobydigital.com";
 
+    @Override
+    public List<CalendarEventDTO> listCalendarEvents(String googleAccessToken) throws IOException {
+        logger.info(STARTING_CALENDAR_EVENTS_SEARCH);
 
-    public List<CalendarEventDto> listCalendarEvents(String googleAccessToken) throws IOException {
-        List<CalendarEventDto> eventList = new ArrayList<>();
-        logger.info("Starting calendar events search...");
-
-        // Construir las credenciales para la API de Google con el accessToken recibido
         AccessToken accessToken = new AccessToken(googleAccessToken, null);
         GoogleCredentials credentials = GoogleCredentials.create(accessToken);
 
-        // Construir el servicio de Google Calendar
         com.google.api.services.calendar.Calendar service =
                 new com.google.api.services.calendar.Calendar.Builder(
                         new NetHttpTransport(),
@@ -41,7 +41,6 @@ public class CalendarService {
                         .setApplicationName("Google Auth API")
                         .build();
 
-        // Obtener los eventos
         com.google.api.services.calendar.model.Events events = service.events()
                 .list("primary")
                 .setMaxResults(5)
@@ -53,57 +52,50 @@ public class CalendarService {
         return getCalendarEventDtos(events);
     }
 
-    public List<CalendarEventDto> listCalendarEventsByMonth(String googleAccessToken,LocalDate date) throws IOException {
-
-        logger.info("Starting calendar events search...");
-
-        // Construir las credenciales para la API de Google con el accessToken recibido
+    @Override
+    public List<CalendarEventDTO> listCalendarEventsByMonth(String googleAccessToken, LocalDate date) throws IOException {
+        logger.info(STARTING_CALENDAR_EVENTS_SEARCH);
 
         LocalDate startDate = YearMonth.from(date).atDay(1);
         LocalDate endDate   = YearMonth.from(date).atEndOfMonth();
 
-        return searchCalendarEvents(googleAccessToken,startDate, Optional.of(endDate));
-
+        return searchCalendarEvents(googleAccessToken,startDate,Optional.of(endDate));
     }
 
-    public List<CalendarEventDto> listCalendarEventsByWeek(String googleAccessToken,LocalDate date) throws IOException {
-        logger.info("Starting calendar events search...");
+    @Override
+    public List<CalendarEventDTO> listCalendarEventsByWeek(String googleAccessToken, LocalDate date) throws IOException {
+        logger.info(STARTING_CALENDAR_EVENTS_SEARCH);
 
-        // Primer día de la semana (lunes)
         LocalDate startDate = date.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-
-        // Último día de la semana (domingo)
         LocalDate endDate = date.with(java.time.temporal.TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
-        return searchCalendarEvents(googleAccessToken,startDate, Optional.of(endDate));
+        return searchCalendarEvents(googleAccessToken,startDate,Optional.of(endDate));
     }
 
-    public List<CalendarEventDto> listCalendarEventsByDay(String googleAccessToken,LocalDate date) throws IOException {
-        logger.info("Starting calendar events search...");
-        return searchCalendarEvents(googleAccessToken,date, Optional.empty());
+    @Override
+    public List<CalendarEventDTO> listCalendarEventsByDay(String googleAccessToken, LocalDate date) throws IOException {
+        logger.info(STARTING_CALENDAR_EVENTS_SEARCH);
+        return searchCalendarEvents(googleAccessToken,date,Optional.empty());
     }
 
-    public List<CalendarEventDto> searchCalendarEvents(String googleAccessToken, LocalDate startDate, Optional<LocalDate> endDateOptional ) throws IOException {
-        List<CalendarEventDto> eventList = new ArrayList<>();
+    @Override
+    public List<CalendarEventDTO> searchCalendarEvents(String googleAccessToken, LocalDate startDate, Optional<LocalDate> endDateOptional ) throws IOException {
 
         AccessToken accessToken = new AccessToken(googleAccessToken, null);
         GoogleCredentials credentials = GoogleCredentials.create(accessToken);
         ZonedDateTime startZdt;
         ZonedDateTime endZdt;
 
-        if(endDateOptional.isPresent()){
-            LocalDate endDate = endDateOptional.orElse(LocalDate.now());
-            startZdt = startDate.atStartOfDay(ZoneId.systemDefault());
-            endZdt   = endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault());
-        }
-        else{
-            startZdt = startDate.atStartOfDay(ZoneId.systemDefault());
-            endZdt   = startDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault());
-        }
+        startZdt = startDate.atStartOfDay(ZoneId.systemDefault());
+
+        endZdt = endDateOptional
+                .orElse(startDate)
+                .atTime(LocalTime.MAX)
+                .atZone(ZoneId.systemDefault());
+
         DateTime timeMin = new DateTime(Date.from(startZdt.plusSeconds(1).toInstant()));
         DateTime timeMax = new DateTime(Date.from(endZdt.plusSeconds(1).toInstant()));
 
-        // Construir el servicio de Google Calendar
         com.google.api.services.calendar.Calendar service =
                 new com.google.api.services.calendar.Calendar.Builder(
                         new NetHttpTransport(),
@@ -112,7 +104,6 @@ public class CalendarService {
                         .setApplicationName("Google Auth API")
                         .build();
 
-        // Obtener los eventos
         com.google.api.services.calendar.model.Events events = service.events()
                 .list("primary")
                 .setMaxResults(100)
@@ -125,68 +116,74 @@ public class CalendarService {
         return getCalendarEventDtos(events);
     }
 
-    private List<CalendarEventDto> getCalendarEventDtos(Events events) {
-        List<CalendarEventDto> listEvents = new ArrayList<>();
+    private List<CalendarEventDTO> getCalendarEventDtos(Events events) {
 
-        if (events.getItems() != null && !events.getItems().isEmpty()) {
-            for (com.google.api.services.calendar.model.Event event : events.getItems()) {
-                Event.Organizer organizer = event.getOrganizer();
-
-                String title = event.getSummary() != null ? event.getSummary() : "No title";
-
-
-                String description = event.getDescription() != null ? event.getDescription() : "";
-                String dateTime = "";
-                String urlMeet = resolveMeetUrl(event);
-
-
-                if (event.getStart() != null) {
-                    if (event.getStart().getDateTime() != null) {
-                        dateTime = event.getStart().getDateTime().toString();
-                    } else if (event.getStart().getDate() != null) {
-                        dateTime = event.getStart().getDate().toString();
-                    }
-                }
-
-                CalendarEventDto dto = new CalendarEventDto();
-                dto.setTitle(title);
-                dto.setDescription(description);
-                dto.setDateTime(dateTime);
-                dto.setMeetUrl(urlMeet);
-
-                if (organizer != null && "branding@mobydigital.com".equals(organizer.getEmail())) {
-
-                    dto.setKindEvent("Branding");
-                } else {
-                    dto.setKindEvent("Personal");
-                }
-                listEvents.add(dto);
-            }
+        if (events.getItems() == null || events.getItems().isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return listEvents;
+        return events.getItems().stream()
+                .map(this::mapEventToDTO)
+                .collect(Collectors.toList());
     }
 
+    private CalendarEventDTO mapEventToDTO(Event event) {
+
+        String title = Optional.ofNullable(event.getSummary()).orElse("No title");
+        String description = Optional.ofNullable(event.getDescription()).orElse("");
+        String dateTime = resolveDateTime(event);
+        String urlMeet = resolveMeetUrl(event);
+
+        CalendarEventDTO dto = new CalendarEventDTO();
+        dto.setTitle(title);
+        dto.setDescription(description);
+        dto.setDateTime(dateTime);
+        dto.setMeetUrl(urlMeet);
+        dto.setKindEvent(resolveKindEvent(event));
+
+        return dto;
+    }
+
+    private String resolveKindEvent(Event event) {
+        Event.Organizer organizer = event.getOrganizer();
+
+        if (organizer != null && BRANDING_ORGANIZER_EMAIL.equals(organizer.getEmail())) {
+            return "Branding";
+        }
+        return "Personal";
+    }
+
+    private String resolveDateTime(Event event) {
+        if (event.getStart() == null) {
+            return "";
+        }
+
+        if (event.getStart().getDateTime() != null) {
+            return event.getStart().getDateTime().toString();
+        }
+
+        if (event.getStart().getDate() != null) {
+            return event.getStart().getDate().toString();
+        }
+        return "";
+
+    }
 
     private String resolveMeetUrl(Event event) {
+
         if (event.getHangoutLink() != null && !event.getHangoutLink().isEmpty()) {
             return event.getHangoutLink();
         }
 
-        if (event.getConferenceData() != null &&
-                event.getConferenceData().getEntryPoints() != null) {
-
-            List<EntryPoint> eps = event.getConferenceData().getEntryPoints();
-            for (EntryPoint ep : eps) {
-                if (ep != null &&
-                        ep.getEntryPointType() != null &&
-                        ep.getEntryPointType().equalsIgnoreCase("video") &&
-                        ep.getUri() != null &&
-                        !ep.getUri().isEmpty()) {
-                    return ep.getUri();
-                }
-            }
-        }
-        return null;
+        return Optional.ofNullable(event.getConferenceData())
+                .map(ConferenceData::getEntryPoints)
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(ep -> "video".equalsIgnoreCase(ep.getEntryPointType()))
+                .filter(ep -> ep.getUri() != null && !ep.getUri().isEmpty())
+                .findFirst()
+                .map(EntryPoint::getUri)
+                .orElse(null);
     }
 }

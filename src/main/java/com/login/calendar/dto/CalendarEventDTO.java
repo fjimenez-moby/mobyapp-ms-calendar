@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class CalendarEventDto {
+public class CalendarEventDTO {
     private  String title;
     private  String description;
     private  String dateTime;
